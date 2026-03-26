@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  langflow:
+    image: langflowai/langflow:latest
+    ports:
+      - "7860:7860"
+    environment:
+      - LANGFLOW_DATABASE_URL=sqlite:///./langflow.db
+      - LANGFLOW_AUTO_LOGIN=true
+    volumes:
+      - langflow_data:/app/langflow
+    restart: unless-stopped
+
+volumes:
+  langflow_data:
