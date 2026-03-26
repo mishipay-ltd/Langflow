@@ -7,9 +7,10 @@ that query and analyze Datadog metrics using Anthropic Claude.
 
 ## Prerequisites
 
-- macOS (Intel iMac 2017)
+- macOS Ventura 13.7+ (Intel iMac 2017)
 - Anthropic API key
 - Datadog API key + Application key
+- ngrok account (free) — for remote access via tunnel
 
 ---
 
@@ -234,6 +235,117 @@ docker compose logs -f langflow
 
 ---
 
+## Phase 7: Enable Authentication
+
+Authentication is enabled in `docker-compose.yml` via `LANGFLOW_AUTO_LOGIN=false`.
+A superuser account is created automatically on first start.
+
+### Setup
+
+1. Create your `.env` file from the example:
+
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` and set a strong password:
+
+```
+LANGFLOW_SUPERUSER_PASSWORD=your-strong-password-here
+```
+
+3. Restart Langflow:
+
+```bash
+docker compose down && docker compose up -d
+```
+
+4. Open http://localhost:7860 — you'll now see a login screen.
+   - **Username**: `admin`
+   - **Password**: whatever you set in `.env`
+
+### Creating additional user accounts
+
+1. Log in as `admin`
+2. Go to **Settings** (gear icon) > **Users**
+3. Click **Add User** and set username + password
+4. Share these credentials with your team members
+
+---
+
+## Phase 8: Expose via ngrok (Free Remote Access)
+
+ngrok gives your Langflow instance a public URL so your team can access
+it from anywhere — no firewall changes, no domain needed, completely free.
+
+The free tier includes **1 static domain** so your URL stays the same
+across restarts (e.g., `your-random-name.ngrok-free.app`).
+
+### One-time ngrok setup
+
+1. **Create a free ngrok account** at https://dashboard.ngrok.com/signup
+
+2. **Copy your auth token**:
+   - Go to https://dashboard.ngrok.com/authtokens
+   - Copy the token
+
+3. **Claim your free static domain**:
+   - Go to https://dashboard.ngrok.com/domains
+   - Click **Create Domain** (free tier gives you one)
+   - You'll get something like `adapted-polite-spider.ngrok-free.app`
+   - Copy this domain
+
+4. **Add both to your `.env`**:
+
+```
+NGROK_AUTHTOKEN=2abc123def456_your_token_here
+NGROK_DOMAIN=adapted-polite-spider.ngrok-free.app
+```
+
+5. **Start everything**:
+
+```bash
+docker compose down && docker compose up -d
+```
+
+6. **Verify**: Open `https://your-domain.ngrok-free.app` — you should see the Langflow login page.
+
+### How it works
+
+```
+Internet --> ngrok Edge --> ngrok tunnel --> ngrok container --> langflow:7860
+```
+
+The `ngrok` container runs alongside Langflow (defined in `docker-compose.yml`).
+It creates an outbound-only connection to ngrok — no inbound ports need to be opened.
+
+### ngrok dashboard
+
+You can monitor tunnel traffic locally at **http://localhost:4040** (the ngrok
+inspection UI is exposed on port 4040 in `docker-compose.yml`).
+
+### Useful commands
+
+```bash
+# Check ngrok tunnel status
+docker compose logs ngrok
+
+# Restart just the tunnel
+docker compose restart ngrok
+
+# View tunnel traffic inspector
+# http://localhost:4040
+```
+
+### Future: Migrate to Cloudflare Tunnel
+
+When you're ready for a production-grade setup with a custom domain
+(e.g., `langflow.mishipay.com`), you can replace ngrok with Cloudflare
+Tunnel. The `docker-compose.yml` just needs the `ngrok` service swapped
+for a `cloudflared` service.
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -244,6 +356,11 @@ docker compose logs -f langflow
 | Datadog 403 error | Check that both API key AND Application key are correct |
 | Datadog 400 error | Verify the query syntax (e.g., `avg:system.cpu.user{*}`) |
 | Slow startup | First pull can take 5-10 minutes depending on network speed |
+| Login not appearing | Make sure `LANGFLOW_AUTO_LOGIN=false` is set and you restarted with `docker compose down && docker compose up -d` |
+| Forgot admin password | Stop Langflow, delete the volume (`docker compose down -v`), update `.env`, and restart |
+| ngrok tunnel not connecting | Check `docker compose logs ngrok` — verify `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` in `.env` are correct |
+| Public URL shows 502 | Langflow may still be starting — wait 30s and refresh. Check `docker compose logs langflow` |
+| ngrok "ERR_NGROK_3200" | The domain is already in use by another tunnel — stop any other ngrok sessions first |
 
 ---
 
@@ -251,7 +368,9 @@ docker compose logs -f langflow
 
 ```
 langflow-datadog/
-├── docker-compose.yml    # Langflow container configuration
+├── docker-compose.yml    # Langflow + ngrok tunnel containers
+├── .env.example          # Template for secrets (copy to .env)
+├── .env                  # Your actual secrets (git-ignored)
 ├── setup.sh              # Automated setup script
 └── README.md             # This file
 ```

@@ -7,9 +7,22 @@ services:
       - "7860:7860"
     environment:
       - LANGFLOW_DATABASE_URL=sqlite:///./langflow.db
-      - LANGFLOW_AUTO_LOGIN=true
+      - LANGFLOW_AUTO_LOGIN=false
+      - LANGFLOW_SUPERUSER=admin
+      - LANGFLOW_SUPERUSER_PASSWORD=${LANGFLOW_SUPERUSER_PASSWORD:?Set LANGFLOW_SUPERUSER_PASSWORD in .env}
     volumes:
       - langflow_data:/app/langflow
+    restart: unless-stopped
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: http langflow:7860 --domain=${NGROK_DOMAIN}
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:?Set NGROK_AUTHTOKEN in .env}
+    ports:
+      - "4040:4040"
+    depends_on:
+      - langflow
     restart: unless-stopped
 
 volumes:
